@@ -29,12 +29,12 @@ ana = ADC(pinAnemo)
 ana.atten( ADC.ATTN_11DB ) # Full 3.3V Range
 
 #led
-n = 48
+n = 400
 p = 5
-maxLight = 30
-r = 200
-g = 200
-b = 200
+maxLight = 400
+r = 255
+g = 0
+b = 0
 
 while True:
     if isActivated == 0:
@@ -61,6 +61,7 @@ while True:
         for i in range(maxLight):
           np[i] = (r, g, b)
           np.write()
+          sleep(0.05)
     
 
 uart.close()
