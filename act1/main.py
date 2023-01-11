@@ -1,68 +1,101 @@
-from machine import Pin, ADC
-from time import sleep
+import machine, neopixel, time
 import bluetooth
-import neopixel
 from ble_advertising import advertising_payload
 from ble_uart_peripheral import *
 
 ble = bluetooth.BLE()
 uart = BLEUART(ble, "esp1")
 
-isActivated = 0
+# define neopixel
+pin = 5
+n = 300
+np = neopixel.NeoPixel(machine.Pin(pin), n)
 
+# to folow the current led 
+currentLed = 0
+
+rr = 40
+gr = 15
+br = 0
+
+rh = 60
+gh = 80
+bh = 40
+
+# waiting, running, end
+status = "waiting"
+endIsSend = 0
+
+def init():
+    global status
+    status = "waiting"
+    for i in range(n):
+        np[i] = (0, 0, 0)
+        np.write()
+        
 def on_rx():
-    res = uart.read().decode().strip()
-    print(res)
-    if res == "ok":
-        global isActivated
-        isActivated = 1
-        print(isActivated)
+    global status
+    status = uart.read().decode().strip()
+    print(status)
+    uart.write(status)
+    if status == "reset":
+        init()
+        
+def glowLight(r, g, b, i):
+    
+    currentLed = i
+    minLed = currentLed - 10
+           
+    if n > i:
+        np[i] = (r, g, b)
+            
+    if minLed > -1:             
+        np[minLed] = (int(r/2), int(g/2), int(b/2))
+
+        
+def stepGlowLights(r, g, b, start, delai):
+    
+    if(start == 1) :
+        for i in range(0, int(n/2) + 10):
+            glowLight(r, g, b, i)
+            time.sleep(delai)
+            np.write()
+    
+    else :
+        for i in range(int(n/2), n + 10):
+            glowLight(r, g, b, i)
+            time.sleep(delai)
+            np.write()
+
+def  currentCode() :
+    print("running")
+    # code ...
+
+######### code for led
+            
+# reset led
+init()
 
 uart.irq(handler=on_rx)
 
-#Anemometer
-# Resistor Divider at ADC input
-R_BRIDGE_RATIO = 0.68117
-pinAnemo = Pin(34, Pin.IN)
-ana = ADC(pinAnemo)
-#ana2 = ADC(Pin(14))
-ana.atten( ADC.ATTN_11DB ) # Full 3.3V Range
-
-#led
-n = 400
-p = 5
-maxLight = 400
-r = 255
-g = 0
-b = 0
-
 while True:
-    if isActivated == 0:
-        value = ana.read_uv() # 0..4095
-        value = value/1000
-        #value2 = ana2.read()
-        v_esp = 3.3 * value / 4096
-        v_anem = v_esp / R_BRIDGE_RATIO
-        # Vitesse vent m/h
-        speed_mps = 6 * v_anem
-        # Vitesse vent en km/h
-        speed_kmph = speed_mps * 3.6
+        
+    if status == "running" :
+        stepGlowLights(rr, gr, br, 0, 0)
+        # envoie d'un message à un autre appareil que le ble symbiose : exemple alumé l'écran des mycorise
+        # uart2.write("draw abithing")
 
-        print( "value 27: ", value )
-        print("pin : ", pinAnemo.value())
-        print( "m/s:", speed_mps )
-        print( "km/h:", speed_kmph )
-        print( "--------------------" )
-        if speed_kmph > 5:
-          uart.write("esp1On")
-        sleep( 0.2 )
-    else:
-        np = neopixel.NeoPixel(Pin(p),n)
-        for i in range(maxLight):
-          np[i] = (r, g, b)
-          np.write()
-          sleep(0.05)
+    elif status == "currentStep" :
+        # fonction qui contiendra le code
+        currentCode()
     
-
+    elif status == "end" :
+        if(endIsSend == 1) :
+            # voir pour changer le message en fonction de la fin de l'expérience
+            uart.write("next step")
+            endIsSend = 1
+            
+        stepGlowLights(rh, gh, bh, 1, 0)
+        
 uart.close()
 
